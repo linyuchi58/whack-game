@@ -4989,6 +4989,54 @@
     </script>
 <script>
         // 🔗 從「遊戲代碼公開區」點進來（網址帶 ?code=12345）：自動填入代碼並載入老師設定
+        // 🔎 管理平台「代碼查詢 → 進入遊戲後台」：網址帶 ?admin=12345
+        let pendingAdminJumpCode = null;
+        function applyAdminJumpParam() {
+            try {
+                const m = String(location.search || '').match(/[?&]admin=(\d{5})(?:&|$)/);
+                if (!m || m[1] === '00000') return;
+                pendingAdminJumpCode = m[1];
+                if (history.replaceState) history.replaceState(null, '', location.pathname + location.hash);
+                openTeacherLoginModal();
+                const card = document.querySelector('#teacher-login-modal .small-modal-card');
+                if (card) {
+                    let tip = document.getElementById('admin-jump-tip');
+                    if (!tip) {
+                        tip = document.createElement('div'); tip.id = 'admin-jump-tip';
+                        tip.style.cssText = 'background:#ede9fe; border:2px solid #8b5cf6; color:#5b21b6; border-radius:10px; padding:8px 10px; margin:0 0 12px 0; font-size:14px; font-weight:bold; line-height:1.5;';
+                        const h2 = card.querySelector('h2'); if (h2) h2.insertAdjacentElement('afterend', tip); else card.prepend(tip);
+                    }
+                    tip.innerHTML = `🔎 從管理平台進入代碼 <b style="font-size:17px; letter-spacing:2px;">${pendingAdminJumpCode}</b> 的設定後台<br><span style="font-weight:normal; font-size:12.5px;">請輸入最高管理員密碼，或這組代碼出題老師的通行碼</span>`;
+                }
+            } catch (e) {}
+        }
+        (function () {
+            const origVerify = verifyTeacherStep1;
+            verifyTeacherStep1 = async function () {
+                const r = await origVerify.apply(this, arguments);
+                const code = pendingAdminJumpCode;
+                if (code && adminSession && adminSession.teacherPass && document.getElementById('teacher-login-modal').style.display === 'none') {
+                    pendingAdminJumpCode = null;
+                    const tip = document.getElementById('admin-jump-tip'); if (tip) tip.remove();
+                    try { switchRoomModalMode('maintain'); } catch (e) {}
+                    const ci = document.getElementById('maintain-room-code-input'), pi = document.getElementById('maintain-room-pin-input');
+                    if (ci) ci.value = code;
+                    if (pi) pi.value = '';
+                    await submitMaintainRoom();   // 最高管理員或出題老師本人：免輸入代碼管理密碼；其他人會停在這裡請輸入管理密碼
+                }
+                return r;
+            };
+            if (typeof closeTeacherLoginModal === 'function') {
+                const origClose = closeTeacherLoginModal;
+                closeTeacherLoginModal = function () { pendingAdminJumpCode = null; const tip = document.getElementById('admin-jump-tip'); if (tip) tip.remove(); return origClose.apply(this, arguments); };
+            }
+            const prevOnload = window.onload;
+            window.onload = function () {
+                if (typeof prevOnload === 'function') prevOnload.apply(this, arguments);
+                setTimeout(applyAdminJumpParam, 30);
+            };
+        })();
+
         function applyUrlCodeParam() {
             try {
                 if (window.__TRANSFERRED_STATE__) return;
