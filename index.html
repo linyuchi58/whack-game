@@ -557,7 +557,26 @@
         .spa-b.on { background: #4f46e5; border-color: #3730a3; color: #fff; }
         .spa-b.cls.on { background: #059669; border-color: #047857; }
         .spa-note { font-size: 12.5px; color: #3f6212; font-weight: 700; }
-    </style>
+    
+/* fs-exit-css-start */
+#fs-exit-btn { position: fixed; top: 10px; left: 10px; z-index: 8500; display: none; align-items: center; gap: 8px;
+  min-height: 48px; padding: 8px 18px 8px 14px; border: 3px solid #fff; border-radius: 999px;
+  background: linear-gradient(180deg, #ef4444, #dc2626); color: #fff; font-family: inherit; font-size: 18px; font-weight: 900; line-height: 1.1; text-align: left;
+  letter-spacing: 1px; cursor: pointer; box-shadow: 0 6px 18px rgba(220,38,38,.45), 0 0 0 3px rgba(220,38,38,.25);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+#fs-exit-btn.show { display: inline-flex; animation: fsIn .35s ease-out; }
+#fs-exit-btn:hover { filter: brightness(1.08); }
+#fs-exit-btn:active { transform: scale(.96); }
+#fs-exit-btn .fs-ico { font-size: 22px; }
+#fs-exit-btn small { display: block; font-size: 12px; font-weight: 700; opacity: .92; letter-spacing: 0; }
+@keyframes fsIn { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+#fs-exit-tip { position: fixed; top: 70px; left: 10px; z-index: 8501; display: none; max-width: min(360px, calc(100vw - 20px));
+  background: #1e293b; color: #fff; padding: 12px 16px; border-radius: 14px; font-size: 16px; font-weight: 700; line-height: 1.5;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+#fs-exit-tip kbd { display: inline-block; background: #fff; color: #1e293b; border-radius: 6px; padding: 0 8px; margin: 0 2px; font-weight: 900; box-shadow: 0 2px 0 #94a3b8; }
+@media (max-width: 480px) { #fs-exit-btn { top: 6px; left: 6px; min-height: 42px; font-size: 15px; padding: 6px 14px 6px 10px; } }
+/* fs-exit-css-end */
+</style>
 </head>
 <body tabindex="0">
     <div id="toast-msg"></div>
@@ -5517,5 +5536,57 @@
             };
         })();
     </script>
+<script id="fs-exit-module">
+/* 🚪 離開全螢幕：首頁 / 結果畫面上方顯示紅色按鈕；遊戲進行中自動隱藏，避免誤觸 */
+(function () {
+  function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null; }
+  // 學生自己按 F11 進入的「瀏覽器全螢幕」，程式無法關閉，只能提示按鍵
+  function browserFs() {
+    try { if (window.matchMedia && matchMedia('(display-mode: fullscreen)').matches) return true; } catch (e) {}
+    var fine = false; try { fine = matchMedia('(pointer: fine)').matches && !matchMedia('(any-pointer: coarse)').matches; } catch (e) {}
+    return fine && screen.width >= 1000 && window.outerHeight >= screen.height - 1 && window.innerHeight >= screen.height - 1 && Math.abs(window.innerWidth - screen.width) <= 1;
+  }
+  function inPlay() {
+    var a = document.querySelector('.screen.active');
+    if (!a || a.id !== 'game-screen') return false;
+    return true;
+  }
+  function hideTip() { var t = document.getElementById('fs-exit-tip'); if (t) t.style.display = 'none'; }
+  function refresh() {
+    var b = document.getElementById('fs-exit-btn'); if (!b) return;
+    var on = (fsEl() || browserFs()) && !inPlay();
+    b.classList.toggle('show', !!on);
+    if (!on) hideTip();
+  }
+  window.fsExitNow = function () {
+    var el = fsEl();
+    if (el) {
+      var ex = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+      try { var r = ex && ex.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) {}
+      setTimeout(refresh, 300);
+      return;
+    }
+    var t = document.getElementById('fs-exit-tip'); if (!t) return;
+    var mac = /Mac/i.test(navigator.platform || '');
+    var cros = /CrOS/i.test(navigator.userAgent || '');
+    t.innerHTML = '這是瀏覽器的全螢幕，請按鍵盤 ' + (mac ? '<kbd>Control</kbd>+<kbd>⌘</kbd>+<kbd>F</kbd>' : cros ? '最上排的 <kbd>⛶ 全螢幕鍵</kbd>' : '<kbd>F11</kbd>（筆電可能要 <kbd>Fn</kbd>+<kbd>F11</kbd>）') + ' 就能離開。<br>或把滑鼠移到畫面最上方，按出現的 <kbd>✕</kbd>。';
+    t.style.display = 'block';
+    clearTimeout(t._h); t._h = setTimeout(hideTip, 8000);
+  };
+  function install() {
+    if (document.getElementById('fs-exit-btn')) return;
+    var b = document.createElement('button');
+    b.id = 'fs-exit-btn'; b.type = 'button'; b.title = '離開全螢幕，回到一般瀏覽器畫面';
+    b.innerHTML = '<span class="fs-ico">🚪</span><span>離開全螢幕<small>點這裡就能看其他網頁</small></span>';
+    b.addEventListener('click', function (e) { e.stopPropagation(); window.fsExitNow(); });
+    var t = document.createElement('div'); t.id = 'fs-exit-tip'; t.addEventListener('click', hideTip);
+    document.body.appendChild(b); document.body.appendChild(t);
+    ['fullscreenchange', 'webkitfullscreenchange', 'resize'].forEach(function (ev) { (ev === 'resize' ? window : document).addEventListener(ev, function () { setTimeout(refresh, 120); }); });
+    setInterval(refresh, 600);
+    refresh();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install); else install();
+})();
+</script>
 </body>
 </html>
