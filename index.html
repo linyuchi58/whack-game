@@ -355,6 +355,12 @@
         .ho-prev { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(255,255,255,0.07); border-radius: 12px; padding: 6px 12px; font-size: clamp(16px, 1.9vw, 24px); color: #e2e8f0; font-weight: 700; }
         .ho-prev b { color: #fde68a; }
         .ho-call { text-align: center; font-size: clamp(30px, 4.6vw, 64px); font-weight: 900; color: #fff; line-height: 1.15; animation: hoPop .45s ease-out; }
+        .ho-call-row { position: relative; display: flex; align-items: center; justify-content: center; }
+        .ho-call-row .ho-call { padding: 0 clamp(150px, 17vw, 230px); }
+        .ho-auto.mini { position: absolute; left: 0; top: 50%; transform: translateY(-50%); min-height: 44px; padding: 6px 12px; font-size: clamp(13px, 1.2vw, 16px); gap: 7px; border-radius: 14px; max-width: clamp(140px, 16vw, 220px); text-align: left; line-height: 1.2; }
+        .ho-auto.mini .ho-auto-box { width: 24px; height: 24px; font-size: 16px; border-radius: 7px; }
+        .ho-auto.mini:active { transform: translateY(-50%) scale(0.97); }
+        @media (max-width: 700px) { .ho-call-row { flex-direction: column; gap: 6px; } .ho-call-row .ho-call { padding: 0; } .ho-auto.mini { position: static; transform: none; } }
         .ho-call-sub { text-align: center; font-size: clamp(16px, 2vw, 26px); color: #93c5fd; font-weight: 700; }
         .ho-start-row { display: flex; align-items: stretch; gap: 12px; }
         .ho-start { position: relative; flex: 1; overflow: hidden; border: none; border-radius: 18px; background: #15803d; color: #fff; font-size: clamp(20px, 2.6vw, 34px); font-weight: 900; padding: 16px 12px; margin: 0; cursor: pointer; box-shadow: 0 6px 0 #14532d; user-select: none; -webkit-user-select: none; touch-action: none; }
@@ -364,6 +370,10 @@
         .ho-start-label { position: relative; }
         .ho-auto { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.08); border: 2px solid rgba(250,204,21,0.6); border-radius: 18px; padding: 8px 14px; color: #fde68a; font-weight: 900; font-size: clamp(13px, 1.4vw, 18px); cursor: pointer; max-width: 30%; }
         .ho-auto input { width: 26px; height: 26px; accent-color: #facc15; flex-shrink: 0; }
+        .ho-auto { font: inherit; font-weight: 900; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .ho-auto .ho-auto-box { width: 28px; height: 28px; border-radius: 9px; border: 3px solid #facc15; display: inline-flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 900; color: #1e293b; background: transparent; flex-shrink: 0; }
+        .ho-auto.on { background: #facc15; border-color: #facc15; color: #1e293b; }
+        .ho-auto.on .ho-auto-box { background: #fff; border-color: #fff; }
         .ho-ready-count { text-align: center; font-size: clamp(16px, 1.9vw, 24px); font-weight: 900; color: #94a3b8; }
         .ho-ready-count.all { color: #4ade80; }
 
@@ -677,7 +687,7 @@
                     <button class="btn-secondary" onclick="openTeacherLoginModal()" style="background: #7f8c8d; box-shadow: 0 3px 0 #576574;">⚙️ 教師管理 / 雲端出題</button>
                 </div>
                 <div style="font-size: 12px; color: #666; font-weight: bold;">💡 用手指或滑鼠敲「舉著正確答案牌子的地鼠」！也可以用鍵盤數字鍵 1~9 與空白鍵大絕招。</div>
-                <div class="app-version" title="v2.0：注音、輪流接力、進階設定、代碼自動載入、答案小卡編輯器、結束遊戲按鈕、熱鬧音效、放大畫面可捲動">🔨 瘋狂打地鼠 v2.0</div>
+                <div class="app-version" title="v2.1：開始挑戰（輪流接力）先出現第一棒就位畫面；站好就自動開始預設開啟，左上角多一個同樣的小開關&#10;v2.0：注音、輪流接力、進階設定、代碼自動載入、答案小卡編輯器、結束遊戲按鈕、熱鬧音效、放大畫面可捲動">🔨 瘋狂打地鼠 v2.1</div>
             </div>
         </div>
 
@@ -1326,7 +1336,7 @@
             applyHomeOverridesToParams();
             rememberRecentCode(codeInput);
             (params.tasks || []).forEach(t => [].concat(t.correct || [], t.wrong || []).forEach(x => { const tok = parseOptionToken(x); if (tok.imgUrl) getCachedImage(tok.imgUrl); }));
-            if (isRelayMode()) beginRelaySession();
+            if (isRelayMode()) { beginRelaySession(); showFirstReadyScreen(); return; }
             showScreen('game-screen');
             startGameFlow();
         }
@@ -2848,22 +2858,31 @@
             });
         }
 
-        function goHandoverReadyPhase() {
+        function goHandoverReadyPhase(isFirst) {
             clearInterval(handoverTimer);
+            const first = isFirst === true || !handoverRecord;
             const rec = handoverRecord;
-            const { rank, total } = handoverRankInfo(rec);
-            const nextNum = currentRelayGroupIdx + 1;
+            const { rank, total } = first ? { rank: 0, total: 0 } : handoverRankInfo(rec);
+            const nextNum = first ? 1 : currentRelayGroupIdx + 1;
+            const autoBtn = (id, mini) => `<button type="button" id="${id}" class="ho-auto${mini ? ' mini' : ''} ${handoverAutoStart ? 'on' : ''}" role="switch" aria-checked="${handoverAutoStart}"
+                            title="只在這一場有效；關掉網頁或回首頁就恢復" onclick="toggleHandoverAuto()">
+                            <span class="ho-auto-box">${handoverAutoStart ? '✓' : ''}</span>
+                            <span>${mini ? '⚡ 站好自動開始' : '⚡ 本場：站好就自動開始'}</span>
+                        </button>`;
             const zones = handoverZoneTeams();
             handoverReady = zones.map(() => false);
             const el = document.getElementById('handover-screen');
             el.className = 'ho-screen phase-ready';
             el.innerHTML = `
                 <div class="ho-top">
-                    <div class="ho-prev">
+                    ${first ? `<div class="ho-prev">
+                        <span>🎮 準備開始：共 <b>${quickTotalGroups}</b> 棒輪流接力</span>
+                        <button class="ho-pill ghost small" onclick="backToHomeFromGame()">🏠 回首頁</button>
+                    </div>` : `<div class="ho-prev">
                         <span>🏁 第${zhNum(rec.groupIndex)}棒：<b>${rec.score} 分</b>　·　目前第 ${rank} 名（共 ${total} 棒）　·　答對 ${rec.correctCount}／敲錯 ${rec.wrongCount}</span>
                         <button class="ho-pill ghost small" onclick="finishRelayEarly()">🏆 提前結束頒獎</button>
-                    </div>
-                    <div class="ho-call">第${zhNum(nextNum)}棒同學，請到螢幕前面！</div>
+                    </div>`}
+                    <div class="ho-call-row">${autoBtn('ho-auto-mini', true)}<div class="ho-call">第${zhNum(nextNum)}棒同學，請到螢幕前面！</div></div>
                     <div class="ho-call-sub">站到螢幕前面，準備好就按「✋ 我站好了」</div>
                     <div class="ho-start-row">
                         <button class="ho-start" id="ho-start"
@@ -2872,11 +2891,7 @@
                             <span class="ho-start-fill" id="ho-start-fill"></span>
                             <span class="ho-start-label" id="ho-start-label">👆 老師按住 1 秒：開始第${zhNum(nextNum)}棒（${nextNum}/${quickTotalGroups}）</span>
                         </button>
-                        <button type="button" id="ho-auto" class="ho-auto ${handoverAutoStart ? 'on' : ''}" role="switch" aria-checked="${handoverAutoStart}"
-                            title="只在這一場有效；關掉網頁或回首頁就恢復" onclick="toggleHandoverAuto()">
-                            <span class="ho-auto-box">${handoverAutoStart ? '✓' : ''}</span>
-                            <span>⚡ 本場：站好就自動開始</span>
-                        </button>
+                        ${autoBtn('ho-auto', false)}
                     </div>
                     <div class="ho-ready-count" id="ho-ready-count">已站好 0 / ${zones.length} 人</div>
                 </div>
@@ -2906,12 +2921,11 @@
         // 觸控螢幕也能點：用按鈕當開關（原本的小勾選框在觸控大屏常點不到）
         function toggleHandoverAuto() {
             handoverAutoStart = !handoverAutoStart;
-            const b = document.getElementById('ho-auto');
-            if (b) {
+            document.querySelectorAll('#handover-screen .ho-auto').forEach(b => {
                 b.classList.toggle('on', handoverAutoStart);
                 b.setAttribute('aria-checked', String(handoverAutoStart));
                 const box = b.querySelector('.ho-auto-box'); if (box) box.textContent = handoverAutoStart ? '✓' : '';
-            }
+            });
             checkHandoverAllReady();
         }
         function checkHandoverAllReady() {
@@ -2924,7 +2938,7 @@
             if (all && handoverAutoStart && !handoverStarting) {
                 handoverStarting = true;
                 playZoneSound('combo', 0);
-                setTimeout(() => { if (document.getElementById('handover-screen').style.display !== 'none') startNextRelayGroup(); }, 900);
+                setTimeout(() => { if (document.getElementById('handover-screen').style.display !== 'none') startHandoverGroup(); }, 900);
             }
         }
 
@@ -2940,7 +2954,7 @@
             const step = () => {
                 const p = Math.min(1, (performance.now() - holdStartAt) / HOLD_MS);
                 if (fill) fill.style.width = (p * 100) + '%';
-                if (p >= 1) { holdRaf = null; handoverStarting = true; playZoneSound('go', 0); startNextRelayGroup(); return; }
+                if (p >= 1) { holdRaf = null; handoverStarting = true; playZoneSound('go', 0); startHandoverGroup(); return; }
                 holdRaf = requestAnimationFrame(step);
             };
             cancelAnimationFrame(holdRaf);
@@ -3035,8 +3049,16 @@
         }
         function beginRelaySession() {
             currentRelayGroupIdx = 1; relaySessionHistory = [];
-            handoverAutoStart = false; quickTotalGroups = relayTotal; quickPlayerCount = 1;
+            handoverAutoStart = true; quickTotalGroups = relayTotal; quickPlayerCount = 1;   // 「站好就自動開始」預設開啟
         }
+        // 按下「開始挑戰」先出現第一棒就位畫面，學生站到前面再按「我站好了」
+        function showFirstReadyScreen() {
+            handoverRecord = null; handoverStarting = false;
+            document.getElementById('handover-screen').style.display = 'flex';
+            goHandoverReadyPhase(true);
+        }
+        function startFirstRelayGroup() { enterFullscreenNow(); hideHandoverScreen(); currentRelayGroupIdx = 1; showScreen('game-screen'); startGameFlow(); }
+        function startHandoverGroup() { if (handoverRecord) startNextRelayGroup(); else startFirstRelayGroup(); }
         function getTierTitleByScore(sc) { return vehicleTitleByScore(sc); }
         function isPkMode() { return false; }
         function getCoolAwardByRank(i) {
@@ -4993,7 +5015,7 @@
             uploadScoreAndLoadBoard();
         }
 
-        function restartGame() { enterFullscreenNow(); if (isRelayMode()) beginRelaySession(); showScreen('game-screen'); startGameFlow(); }
+        function restartGame() { enterFullscreenNow(); if (isRelayMode()) { beginRelaySession(); showFirstReadyScreen(); return; } showScreen('game-screen'); startGameFlow(); }
 
         // === 語音系統 ===
         function speakText(text, forceInterrupt = true) {
